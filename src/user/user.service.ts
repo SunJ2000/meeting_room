@@ -15,6 +15,8 @@ import { Role } from './entities/role.entity';
 import { Permission } from './entities/perimission.entity';
 import { LoginUserDto } from './dto/login-user.dto';
 import { LoginUserVo } from './vo/login-user.vo';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UserService {
@@ -30,6 +32,12 @@ export class UserService {
 
   @Inject(RedisService)
   private redisService: RedisService;
+
+  @Inject(JwtService)
+  private jwtService: JwtService;
+
+  @Inject(ConfigService)
+  private configService: ConfigService;
 
   async register(user: RegisterUserDto) {
     const captcha = await this.redisService.getValue(`captcha_${user.email}`);
@@ -114,6 +122,7 @@ export class UserService {
       throw new HttpException('密码错误', HttpStatus.BAD_REQUEST);
     }
     const vo = new LoginUserVo();
+
     vo.userInfo = {
       id: user.id,
       username: user.username,
@@ -134,6 +143,56 @@ export class UserService {
         return arr;
       }, []),
     };
+
+    vo.accessToken = this.jwtService.sign(
+      {
+        userId: vo.userInfo.id,
+        username: vo.userInfo.username,
+        roles: vo.userInfo.roles,
+        permissions: vo.userInfo.permissions,
+      },
+      {
+        expiresIn:
+          this.configService.get('jwt_access_token_expires_time') || '30m',
+      },
+    );
+
+    vo.refreshToken = this.jwtService.sign(
+      {
+        userId: vo.userInfo.id,
+      },
+      {
+        expiresIn:
+          this.configService.get('jwt_refresh_token_expres_time') || '7d',
+      },
+    );
+
     return vo;
+  }
+
+  async findUserById(id: number) {
+    const user = await this.userRepository.findOne({
+      where: {
+        id,
+      },
+      relations: ['roles', 'roles.permissions'],
+    });
+    if (!user) {
+      throw new HttpException('用户不存在', HttpStatus.BAD_REQUEST);
+    }
+    return {
+      id: user.id,
+      username: user.username,
+      is_admin: user.is_admin,
+      roles: user.roles.map((item) => item.name),
+      permissions: user.roles.reduce((arr: Permission[], item) => {
+        item.permissions.forEach((permission) => {
+          if (arr.indexOf(permission) === -1) {
+            arr.push(permission);
+          }
+        });
+        return arr;
+      }, []),
+    };
   }
 }
