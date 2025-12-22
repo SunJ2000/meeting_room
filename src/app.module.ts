@@ -47,7 +47,6 @@ import { AppService } from './app.service';
       }),
       inject: [ConfigService],
     }),
-
     UserModule,
     RedisModule,
     EmailModule,

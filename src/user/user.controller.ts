@@ -14,8 +14,12 @@ import { RedisService } from 'src/redis/redis.service';
 import { LoginUserDto } from './dto/login-user.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { RequireLogin, UserInfo } from 'src/custom.decorator';
+import { UserDetailVo } from './vo/user-info.vo';
+import { generateParseIntPipe } from 'src/utils';
 
 @Controller('user')
+@RequireLogin()
 export class UserController {
   @Inject(EmailService)
   private emailService: EmailService;
@@ -103,5 +107,46 @@ export class UserController {
       console.log(e);
       throw new UnauthorizedException('token 已失效，请重新登录');
     }
+  }
+
+  @Get('info')
+  async info(@UserInfo('userId') userid: number) {
+    const user = await this.userService.findUserDetailById(userid);
+    const vo = new UserDetailVo();
+    vo.id = user.id;
+    vo.email = user.email;
+    vo.username = user.username;
+    vo.nickname = user.nickname;
+    vo.avatar = user.avatar;
+    vo.mobile = user.mobile;
+    vo.is_admin = user.is_admin;
+    vo.is_frozen = user.is_frozen;
+    vo.createTime = user.create_time;
+
+    return vo;
+  }
+
+  @Get('freeze')
+  async freeze(@Query('id') userId: number) {
+    await this.userService.freezeUserById(userId);
+    return 'success';
+  }
+  @Get('list')
+  async userlist(
+    @Query('page', generateParseIntPipe('page'))
+    page: number,
+    @Query('pageSize', generateParseIntPipe('pageSize'))
+    pageSize: number,
+    @Query('username') username: string,
+    @Query('nickname') nickname: string,
+    @Query('email') email: string,
+  ) {
+    return await this.userService.findUsersByPage(
+      page,
+      pageSize,
+      username,
+      nickname,
+      email,
+    );
   }
 }

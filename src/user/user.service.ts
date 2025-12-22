@@ -8,7 +8,7 @@ import {
 import { RegisterUserDto } from './dto/registeruser.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
+import { Like, Repository } from 'typeorm';
 import { RedisService } from 'src/redis/redis.service';
 import { md5 } from 'src/utils';
 import { Role } from './entities/role.entity';
@@ -193,6 +193,71 @@ export class UserService {
         });
         return arr;
       }, []),
+    };
+  }
+
+  async findUserDetailById(id: number) {
+    const user = await this.userRepository.findOne({
+      where: {
+        id,
+      },
+    });
+    if (!user) {
+      throw new HttpException('用户不存在', HttpStatus.BAD_REQUEST);
+    }
+    return user;
+  }
+
+  async freezeUserById(userId: number) {
+    const user = await this.userRepository.findOne({
+      where: {
+        id: userId,
+      },
+    });
+    if (!user) {
+      throw new HttpException('用户不存在', HttpStatus.BAD_REQUEST);
+    }
+    user.is_frozen = true;
+    await this.userRepository.save(user);
+  }
+
+  async findUsersByPage(
+    page: number,
+    pageSize: number,
+    username?: string,
+    nickname?: string,
+    email?: string,
+  ) {
+    const condition: Record<string, any> = {};
+
+    if (username) {
+      condition.username = Like(`%${username}%`);
+    }
+    if (nickname) {
+      condition.nickname = Like(`%${nickname}%`);
+    }
+    if (email) {
+      condition.email = Like(`%${email}%`);
+    }
+    const [users, total] = await this.userRepository.findAndCount({
+      select: [
+        'id',
+        'username',
+        'nickname',
+        'is_frozen',
+        'is_admin',
+        'email',
+        'mobile',
+        'avatar',
+        'create_time',
+      ],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      where: condition,
+    });
+    return {
+      users,
+      total,
     };
   }
 }
