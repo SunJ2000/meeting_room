@@ -11,8 +11,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { APP_GUARD } from '@nestjs/core';
 import { LoginGuard } from './login.guard';
 import { PermissionGuard } from './permission.guard';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -51,7 +49,7 @@ import { AppService } from './app.service';
     RedisModule,
     EmailModule,
   ],
-  controllers: [AppController],
+  controllers: [],
   providers: [
     {
       provide: APP_GUARD,
@@ -61,7 +59,6 @@ import { AppService } from './app.service';
       provide: APP_GUARD,
       useClass: PermissionGuard,
     },
-    AppService,
   ],
 })
 export class AppModule {}

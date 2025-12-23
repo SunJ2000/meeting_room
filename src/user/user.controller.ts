@@ -1,11 +1,15 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  HttpStatus,
   Inject,
   Post,
   Query,
   UnauthorizedException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { RegisterUserDto } from './dto/registeruser.dto';
@@ -17,9 +21,12 @@ import { ConfigService } from '@nestjs/config';
 import { RequireLogin, UserInfo } from 'src/custom.decorator';
 import { UserDetailVo } from './vo/user-info.vo';
 import { generateParseIntPipe } from 'src/utils';
+import { ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { storage } from 'src/file-storage';
 
+@ApiTags('用户管理')
 @Controller('user')
-@RequireLogin()
 export class UserController {
   @Inject(EmailService)
   private emailService: EmailService;
@@ -40,6 +47,16 @@ export class UserController {
     return await this.userService.register(registerUser);
   }
 
+  @ApiQuery({
+    name: 'address',
+    description: '邮箱地址',
+    required: true,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: '发送成功',
+    type: String,
+  })
   @Get('register-captcha')
   async captcha(@Query('address') address: string) {
     const code = Math.random().toString().slice(2, 8);
@@ -110,6 +127,7 @@ export class UserController {
   }
 
   @Get('info')
+  @RequireLogin()
   async info(@UserInfo('userId') userid: number) {
     const user = await this.userService.findUserDetailById(userid);
     const vo = new UserDetailVo();
@@ -148,5 +166,30 @@ export class UserController {
       nickname,
       email,
     );
+  }
+
+  @Post('upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      dest: './uploads/avatar',
+      storage: storage,
+      limits: {
+        fileSize: 1024 * 1024 * 3,
+      },
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
+          return cb(
+            new BadRequestException(
+              '只支持上传 jpg/jpeg/png/gif 格式的图片文件',
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadFile(@UploadedFile() file: Express.Multer.File) {
+    return file.path;
   }
 }
